@@ -9,6 +9,8 @@ I'd like to, *but* that would require optionalizing most of the Send constraints
 I expect there's a few parts of this that could be upstreamed, but I seriously doubt **all** of this belongs upstream. If that turns out to be incorrect, consider this repo an exercise in exterior refactoring.
 
 Roadmap
-- [ ] HTTP GET Support
-- [ ] JS bindings
+- [x] get_opts via http/s
+- [ ] attempt actual streaming responses
+- [ ] avoid/provide a config option for swapping HEAD requests with zero-range GETs
+- [ ] JS bindings (behind a flag)
 - [ ] AWS read only operations
