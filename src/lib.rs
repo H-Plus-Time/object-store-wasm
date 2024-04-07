@@ -1,3 +1,6 @@
+pub mod utils;
+
+use std::default;
 use std::fmt::Formatter;
 use std::ops::Range;
 use std::fmt::Display;
@@ -6,6 +9,9 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc, TimeZone};
 use futures::TryFutureExt;
 use futures::stream::BoxStream;
+use futures::stream::TryStreamExt;
+use futures::stream::StreamExt;
+use futures::SinkExt;
 use futures::channel::oneshot;
 use wasm_bindgen_futures::spawn_local;
 use object_store::{path::Path, ObjectMeta};
@@ -21,7 +27,10 @@ use async_trait::async_trait;
 use reqwest::{Client, Method, StatusCode, Response, RequestBuilder, header::{
     LAST_MODIFIED, CONTENT_LENGTH, HeaderMap, ETAG
 }};
+use ehttp::streaming::fetch;
+use async_stream::stream;
 use snafu::{OptionExt, ResultExt, Snafu};
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Copy, Clone)]
 /// Configuration for header extraction
@@ -66,19 +75,17 @@ enum HeaderError {
     },
 }
 
-fn get_etag(headers: &HeaderMap) -> Result<String, HeaderError> {
-    let e_tag = headers.get(ETAG).ok_or(HeaderError::MissingEtag)?;
-    Ok(e_tag.to_str().context(BadHeaderSnafu)?.to_string())
+fn get_etag(headers: &ehttp::Headers) -> Result<String, HeaderError> {
+    let e_tag = headers.get(ETAG.as_str()).ok_or(HeaderError::MissingEtag)?;
+    Ok(e_tag.to_string())
 }
-
 fn header_meta(
     location: &Path,
-    headers: &HeaderMap,
+    headers: &ehttp::Headers,
     cfg: HeaderConfig,
 ) -> Result<ObjectMeta, HeaderError> {
-    let last_modified = match headers.get(LAST_MODIFIED) {
+    let last_modified = match headers.get(LAST_MODIFIED.as_str()) {
         Some(last_modified) => {
-            let last_modified = last_modified.to_str().context(BadHeaderSnafu)?;
             DateTime::parse_from_rfc2822(last_modified)
                 .context(InvalidLastModifiedSnafu { last_modified })?
                 .with_timezone(&Utc)
@@ -86,27 +93,22 @@ fn header_meta(
         None if cfg.last_modified_required => return Err(HeaderError::MissingLastModified),
         None => Utc.timestamp_nanos(0),
     };
-
     let e_tag = match get_etag(headers) {
         Ok(e_tag) => Some(e_tag),
         Err(HeaderError::MissingEtag) if !cfg.etag_required => None,
         Err(e) => return Err(e),
     };
-
     let content_length = headers
-        .get(CONTENT_LENGTH)
+        .get(CONTENT_LENGTH.as_str())
         .context(MissingContentLengthSnafu)?;
-
-    let content_length = content_length.to_str().context(BadHeaderSnafu)?;
     let size = content_length
         .parse()
         .context(InvalidContentLengthSnafu { content_length })?;
 
     let version = match cfg.version_header.and_then(|h| headers.get(h)) {
-        Some(v) => Some(v.to_str().context(BadHeaderSnafu)?.to_string()),
+        Some(v) => Some(v.to_string()),
         None => None,
     };
-
     Ok(ObjectMeta {
         location: location.clone(),
         last_modified,
@@ -116,15 +118,35 @@ fn header_meta(
     })
 }
 
-pub trait GetOptionsExt {
-    fn with_get_options(self, options: GetOptions) -> Self;
+#[derive(Debug)]
+#[wasm_bindgen]
+pub struct HttpObjectStore {
+    url: Url
 }
 
-impl GetOptionsExt for RequestBuilder {
-    fn with_get_options(mut self, options: GetOptions) -> Self {
-        use reqwest::header::*;
+impl HttpObjectStore {
+    const STORE: &'static str = "HTTP";
+    const HEADER_CONFIG: HeaderConfig = HeaderConfig {
+        etag_required: false,
+        last_modified_required: false,
+        version_header: None,
+    };
+    pub fn new(url: Url) -> Self {
+        Self { url: url.clone() }
+    }
+}
 
-        if let Some(range) = options.range {
+
+impl HttpObjectStore {
+    fn path_url(&self, location: &Path) -> Url {
+        let mut url = self.url.clone();
+        url.path_segments_mut().unwrap().extend(location.parts());
+        url
+    }
+
+    fn get_headers(&self, options: &GetOptions) -> ehttp::Headers {
+        let mut headers = ehttp::Headers::default();
+        if let Some(range) = &options.range {
             let range = match range {
                 GetRange::Bounded(range) => {
                     format!("bytes={}-{}", range.start, range.end.saturating_sub(1))
@@ -134,150 +156,16 @@ impl GetOptionsExt for RequestBuilder {
                 }
                 GetRange::Suffix(upper_limit) => format!("bytes=0-{}", upper_limit)
             };
-            self = self.header(RANGE, range);
+            headers.insert("range", range);
         }
+        
+        headers
 
-        if let Some(tag) = options.if_match {
-            self = self.header(IF_MATCH, tag);
-        }
-
-        if let Some(tag) = options.if_none_match {
-            self = self.header(IF_NONE_MATCH, tag);
-        }
-
-        const DATE_FORMAT: &str = "%a, %d %b %Y %H:%M:%S GMT";
-        if let Some(date) = options.if_unmodified_since {
-            self = self.header(IF_UNMODIFIED_SINCE, date.format(DATE_FORMAT).to_string());
-        }
-
-        if let Some(date) = options.if_modified_since {
-            self = self.header(IF_MODIFIED_SINCE, date.format(DATE_FORMAT).to_string());
-        }
-
-        self
-    }
-}
-
-
-// #[derive(Debug)]
-struct InhouseGetResult {
-    range: Range<usize>,
-    payload: Result<Bytes, Error>,
-    meta: ObjectMeta
-}
-
-impl std::fmt::Debug for InhouseGetResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-       write!(f, "InhouseGetResult(Opaque)")
-    }
-}
-
-#[derive(Debug, Clone)]
-struct InnerClient {
-    url: Url,
-    client: Client,
-}
-
-impl InnerClient {
-    const STORE: &'static str = "HTTP";
-    const HEADER_CONFIG: HeaderConfig = HeaderConfig {
-        etag_required: false,
-        last_modified_required: false,
-        version_header: None,
-    };
-    fn new(url: Url) -> Self {
-        Self { url, client: Client::new()}
-    }
-
-    fn path_url(&self, location: &Path) -> Url {
-        let mut url = self.url.clone();
-        url.path_segments_mut().unwrap().extend(location.parts());
-        url
-    }
-
-    async fn get_request(&self, path: &Path, options: GetOptions) -> Result<Response> {
-        let url = self.path_url(path);
-        let has_range = options.range.is_some();
-        let method = match options.head {
-            true => Method::HEAD,
-            false => Method::GET,
-        };
-        let builder = self.client.request(method, url).with_get_options(options);
-        let res_func = || async {
-            
-            builder.try_clone().unwrap()
-            .send().await
-        };
-        let res = res_func.retry(&ExponentialBuilder::default())
-        .await
-        .map_err(|source| match source.status() {
-            // Some stores return METHOD_NOT_ALLOWED for get on directories
-            Some(StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) => {
-                Error::NotFound {
-                    source: Box::new(source),
-                    path: path.to_string(),
-                }
-            }
-            _ => Error::Generic { store: InnerClient::STORE, source: Box::new(source) },
-        })?;
-
-        // We expect a 206 Partial Content response if a range was requested
-        // a 200 OK response would indicate the server did not fulfill the request
-        if has_range && res.status() != StatusCode::PARTIAL_CONTENT {
-            return Err(Error::NotSupported {
-                source: Box::new(Error::NotImplemented {
-                    // href: path.to_string(),
-                }),
-            });
-        }
-
-        Ok(res)
-    }
-
-    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<InhouseGetResult> {
-        let range = options.range.clone();
-        let response = self.get_request(location, options).await?;
-        let meta = header_meta(location, response.headers(), InnerClient::HEADER_CONFIG).map_err(|e| {
-            Error::Generic {
-                store: InnerClient::STORE,
-                source: Box::new(e),
-            }
-        })?;
-
-        let stream = response
-            .bytes()
-            .map_err(|source| Error::Generic {
-                store: InnerClient::STORE,
-                source: Box::new(source),
-            }).await;
-        let resolved_range = match range {
-            Some(GetRange::Bounded(inner_range)) => inner_range,
-            Some(GetRange::Offset(lower_limit)) => (lower_limit..meta.size),
-            Some(GetRange::Suffix(upper_limit)) => (0..upper_limit),
-            None => 0..meta.size
-        };
-        // hack - diverge from upstream object_store implementation
-        Ok(InhouseGetResult {
-            range: resolved_range,
-            payload: stream,
-            meta
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct HttpStore {
-    client: InnerClient,
-}
-
-impl HttpStore {
-    pub fn new(url: Url) -> Self {
-        Self { client: InnerClient::new(url) }
     }
 }
 
 #[async_trait]
-impl ObjectStore for HttpStore {
+impl ObjectStore for HttpObjectStore {
     async fn abort_multipart(
         &self,
         _location: &Path,
@@ -313,27 +201,70 @@ impl ObjectStore for HttpStore {
     async fn delete(&self, _location: &Path) -> object_store::Result<()> {
         todo!()
     }
-
     async fn get_opts(
         &self,
         location: &Path,
         options: object_store::GetOptions,
     ) -> object_store::Result<object_store::GetResult> {
-        let (sender, receiver) = oneshot::channel();
-        let copied_client = self.client.clone();
-        let copied_location = location.clone();
+        #[cfg(target_arch = "wasm32")]
+        let req = ehttp::Request {
+            headers: self.get_headers(&options),
+            ..(match options.head {
+                false => ehttp::Request::get(self.path_url(location).to_string()),
+                true => ehttp::Request::head(self.path_url(location).to_string()),
+            })
+        };
+
+        let (mut tx, rx) = futures::channel::mpsc::channel(2);
+        let (mut tx_headers, rx_headers) = futures::channel::mpsc::channel(1);
+        #[cfg(target_arch = "wasm32")]
         spawn_local(async move {
-            let res = copied_client.get_opts(&copied_location, options).await.unwrap();
-            sender.send(res).unwrap();
+
+            let mut stream_instance = ehttp::streaming::fetch_async_streaming(&req).await.unwrap();
+            while let Some(chunk) = stream_instance.next().await {
+                let part = match chunk {
+                    Ok(part) => part,
+                    Err(err) => {
+                        crate::log!("Error: {:?}", err);
+                        break;
+                    }
+                };
+                match part {
+                    ehttp::streaming::Part::Response(response) => {
+                        if response.ok {
+                            tx_headers.send(response.headers).await;
+                            tx_headers.close_channel();
+                            continue;
+                        } else {
+                            break;
+                        }
+                    },
+                    ehttp::streaming::Part::Chunk(chunk) => {
+                        if chunk.is_empty() {
+                            tx.close_channel();
+                            break;
+                        }
+                        tx.send(Ok(chunk.into())).await;
+                    }
+                }
+            };
         });
-        
-        let data = receiver.await.unwrap();
-        let wrapped_stream = futures::stream::once(futures::future::ready(data.payload));
-        
+        let safe_stream = rx.boxed();
+
+        let headers_vec = rx_headers.collect::<Vec<ehttp::Headers>>().await;
+        let headers = headers_vec.first().unwrap();
+        let range = options.range.clone();
+        let meta = header_meta(location, &headers, HttpObjectStore::HEADER_CONFIG).unwrap();
+        let resolved_range = match range {
+            Some(GetRange::Bounded(inner_range)) => inner_range,
+            Some(GetRange::Offset(lower_limit)) => (lower_limit..meta.size),
+            Some(GetRange::Suffix(upper_limit)) => (0..upper_limit),
+            None => 0..meta.size
+        };
         Ok(GetResult {
-            range: data.range,
-            payload: GetResultPayload::Stream(Box::pin(wrapped_stream)),
-            meta: data.meta
+            range: resolved_range,
+            payload: GetResultPayload::Stream(safe_stream),
+            meta: meta
         })
     }
     async fn put_opts(
@@ -355,8 +286,8 @@ impl ObjectStore for HttpStore {
     }
     
 }
-impl Display for HttpStore {
+impl Display for HttpObjectStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.client)
+        write!(f, "{:?}", self.url)
     }
 }
