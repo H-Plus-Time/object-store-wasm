@@ -8,8 +8,9 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [features]
+http = []
 js_binding = []
-default = ["console_error_panic_hook", "js_binding"]
+default = ["console_error_panic_hook", "http", "js_binding"]
 
 [dependencies]
 wasm-bindgen = "0.2.90"

@@ -1,3 +1,3 @@
 pub mod utils;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "http"))]
 pub mod http;
