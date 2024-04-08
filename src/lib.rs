@@ -120,11 +120,11 @@ fn header_meta(
 
 #[derive(Debug)]
 #[wasm_bindgen]
-pub struct HttpObjectStore {
+pub struct HttpStore {
     url: Url
 }
 
-impl HttpObjectStore {
+impl HttpStore {
     const STORE: &'static str = "HTTP";
     const HEADER_CONFIG: HeaderConfig = HeaderConfig {
         etag_required: false,
@@ -137,7 +137,7 @@ impl HttpObjectStore {
 }
 
 
-impl HttpObjectStore {
+impl HttpStore {
     fn path_url(&self, location: &Path) -> Url {
         let mut url = self.url.clone();
         url.path_segments_mut().unwrap().extend(location.parts());
@@ -165,7 +165,7 @@ impl HttpObjectStore {
 }
 
 #[async_trait]
-impl ObjectStore for HttpObjectStore {
+impl ObjectStore for HttpStore {
     async fn abort_multipart(
         &self,
         _location: &Path,
@@ -254,7 +254,7 @@ impl ObjectStore for HttpObjectStore {
         let headers_vec = rx_headers.collect::<Vec<ehttp::Headers>>().await;
         let headers = headers_vec.first().unwrap();
         let range = options.range.clone();
-        let meta = header_meta(location, &headers, HttpObjectStore::HEADER_CONFIG).unwrap();
+        let meta = header_meta(location, &headers, HttpStore::HEADER_CONFIG).unwrap();
         let resolved_range = match range {
             Some(GetRange::Bounded(inner_range)) => inner_range,
             Some(GetRange::Offset(lower_limit)) => (lower_limit..meta.size),
@@ -286,7 +286,7 @@ impl ObjectStore for HttpObjectStore {
     }
     
 }
-impl Display for HttpObjectStore {
+impl Display for HttpStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.url)
     }
