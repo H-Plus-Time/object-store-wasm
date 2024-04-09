@@ -3,7 +3,6 @@ use std::fmt::Display;
 use bytes::Bytes;
 use chrono::{DateTime, Utc, TimeZone};
 use futures::stream::BoxStream;
-use futures::SinkExt;
 use futures::stream::StreamExt;
 use futures::channel::oneshot;
 use wasm_bindgen_futures::spawn_local;
@@ -228,16 +227,15 @@ impl InnerClient {
                 source: Box::new(e),
             }
         })?;
-        let (mut tx, rx) = futures::channel::mpsc::channel(1);
+        let (tx, rx) = futures::channel::mpsc::channel(1);
         spawn_local(async move {
-            let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                let res = chunk.map_err(|source| Error::Generic {
+            let stream = response.bytes_stream();
+            stream.map(|chunk|
+                Ok(chunk.map_err(|source| Error::Generic {
                     store: InnerClient::STORE,
                     source: Box::new(source),
-                });
-                tx.send(res).await.unwrap();
-            }
+                }))
+            ).forward(tx).await.unwrap();
         });
         let safe_stream = rx.boxed();
 
