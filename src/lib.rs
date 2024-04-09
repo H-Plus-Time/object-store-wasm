@@ -1,24 +1,23 @@
 use std::fmt::Display;
 
 use bytes::Bytes;
-use chrono::{DateTime, Utc, TimeZone};
+use chrono::{DateTime, TimeZone, Utc};
+use futures::channel::oneshot;
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
-use futures::channel::oneshot;
-use wasm_bindgen_futures::spawn_local;
 use object_store::{path::Path, ObjectMeta};
+use object_store::{Error, GetOptions, GetRange, GetResult, GetResultPayload, ObjectStore, Result};
 use url::Url;
-use object_store::{
-    ObjectStore, GetResult, GetResultPayload, GetOptions, Result, Error, GetRange
-};
+use wasm_bindgen_futures::spawn_local;
 // use tracing::info;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 
 use async_trait::async_trait;
-use reqwest::{Client, Method, StatusCode, Response, RequestBuilder, header::{
-    LAST_MODIFIED, CONTENT_LENGTH, HeaderMap, ETAG
-}};
+use reqwest::{
+    header::{HeaderMap, CONTENT_LENGTH, ETAG, LAST_MODIFIED},
+    Client, Method, RequestBuilder, Response, StatusCode,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Copy, Clone)]
@@ -130,7 +129,7 @@ impl GetOptionsExt for RequestBuilder {
                 GetRange::Offset(offset) => {
                     format!("bytes={}-", offset)
                 }
-                GetRange::Suffix(upper_limit) => format!("bytes=0-{}", upper_limit)
+                GetRange::Suffix(upper_limit) => format!("bytes=0-{}", upper_limit),
             };
             self = self.header(RANGE, range);
         }
@@ -170,7 +169,10 @@ impl InnerClient {
         version_header: None,
     };
     fn new(url: Url) -> Self {
-        Self { url, client: Client::new()}
+        Self {
+            url,
+            client: Client::new(),
+        }
     }
 
     fn path_url(&self, location: &Path) -> Url {
@@ -187,23 +189,21 @@ impl InnerClient {
             false => Method::GET,
         };
         let builder = self.client.request(method, url).with_get_options(options);
-        let res_func = || async {
-            
-            builder.try_clone().unwrap()
-            .send().await
-        };
-        let res = res_func.retry(&ExponentialBuilder::default())
-        .await
-        .map_err(|source| match source.status() {
-            // Some stores return METHOD_NOT_ALLOWED for get on directories
-            Some(StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) => {
-                Error::NotFound {
+        let res_func = || async { builder.try_clone().unwrap().send().await };
+        let res = res_func
+            .retry(&ExponentialBuilder::default())
+            .await
+            .map_err(|source| match source.status() {
+                // Some stores return METHOD_NOT_ALLOWED for get on directories
+                Some(StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) => Error::NotFound {
                     source: Box::new(source),
                     path: path.to_string(),
-                }
-            }
-            _ => Error::Generic { store: InnerClient::STORE, source: Box::new(source) },
-        })?;
+                },
+                _ => Error::Generic {
+                    store: InnerClient::STORE,
+                    source: Box::new(source),
+                },
+            })?;
 
         // We expect a 206 Partial Content response if a range was requested
         // a 200 OK response would indicate the server did not fulfill the request
@@ -221,21 +221,26 @@ impl InnerClient {
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
         let range = options.range.clone();
         let response = self.get_request(location, options).await?;
-        let meta = header_meta(location, response.headers(), InnerClient::HEADER_CONFIG).map_err(|e| {
-            Error::Generic {
-                store: InnerClient::STORE,
-                source: Box::new(e),
-            }
-        })?;
+        let meta =
+            header_meta(location, response.headers(), InnerClient::HEADER_CONFIG).map_err(|e| {
+                Error::Generic {
+                    store: InnerClient::STORE,
+                    source: Box::new(e),
+                }
+            })?;
         let (tx, rx) = futures::channel::mpsc::channel(1);
         spawn_local(async move {
             let stream = response.bytes_stream();
-            stream.map(|chunk|
-                Ok(chunk.map_err(|source| Error::Generic {
-                    store: InnerClient::STORE,
-                    source: Box::new(source),
-                }))
-            ).forward(tx).await.unwrap();
+            stream
+                .map(|chunk| {
+                    Ok(chunk.map_err(|source| Error::Generic {
+                        store: InnerClient::STORE,
+                        source: Box::new(source),
+                    }))
+                })
+                .forward(tx)
+                .await
+                .unwrap();
         });
         let safe_stream = rx.boxed();
 
@@ -243,12 +248,12 @@ impl InnerClient {
             Some(GetRange::Bounded(inner_range)) => inner_range,
             Some(GetRange::Offset(lower_limit)) => lower_limit..meta.size,
             Some(GetRange::Suffix(upper_limit)) => 0..upper_limit,
-            None => 0..meta.size
+            None => 0..meta.size,
         };
         Ok(GetResult {
             range: resolved_range,
             payload: GetResultPayload::Stream(safe_stream),
-            meta
+            meta,
         })
     }
 }
@@ -260,7 +265,9 @@ pub struct HttpStore {
 
 impl HttpStore {
     pub fn new(url: Url) -> Self {
-        Self { client: InnerClient::new(url) }
+        Self {
+            client: InnerClient::new(url),
+        }
     }
 }
 
@@ -284,18 +291,10 @@ impl ObjectStore for HttpStore {
         Err(Error::NotImplemented)
     }
 
-    async fn copy(
-        &self,
-        _from: &Path,
-        _to: &Path,
-    ) -> object_store::Result<()> {
+    async fn copy(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
         todo!()
     }
-    async fn copy_if_not_exists(
-        &self,
-        _from: &Path,
-        _to: &Path,
-    ) -> object_store::Result<()> {
+    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
         todo!()
     }
     async fn delete(&self, _location: &Path) -> object_store::Result<()> {
@@ -314,7 +313,7 @@ impl ObjectStore for HttpStore {
             let res = copied_client.get_opts(&copied_location, options).await;
             sender.send(res).unwrap();
         });
-        
+
         receiver.await.unwrap()
     }
     async fn put_opts(
@@ -334,7 +333,6 @@ impl ObjectStore for HttpStore {
     ) -> object_store::Result<object_store::ListResult> {
         todo!()
     }
-    
 }
 impl Display for HttpStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
