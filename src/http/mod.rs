@@ -5,6 +5,8 @@ use chrono::{DateTime, TimeZone, Utc};
 use futures::channel::oneshot;
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
+use object_store::PutMode;
+use object_store::PutResult;
 use object_store::{path::Path, ObjectMeta};
 use object_store::{Error, GetOptions, GetRange, GetResult, GetResultPayload, ObjectStore, Result};
 use url::Url;
@@ -20,7 +22,7 @@ use reqwest::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 
-#[cfg(feature="js_binding")]
+#[cfg(feature = "js_binding")]
 pub mod js_binding;
 
 #[derive(Debug, Copy, Clone)]
@@ -259,6 +261,30 @@ impl InnerClient {
             meta,
         })
     }
+    pub async fn delete(&self, path: &Path) -> Result<()> {
+        let url = self.path_url(path);
+        self.client
+            .delete(url)
+            .send()
+            .await
+            .map_err(|source| match source.status() {
+                Some(StatusCode::NOT_FOUND) => Error::NotFound {
+                    source: Box::new(source),
+                    path: path.to_string(),
+                },
+                // TODO: de-genericize
+                _ => Error::Generic {
+                    store: InnerClient::STORE,
+                    source: Box::new(source),
+                }
+                .into(),
+            })?;
+        Ok(())
+    }
+
+    pub async fn put(&self, path: &Path, payload: Bytes) -> Result<Response> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -301,7 +327,14 @@ impl ObjectStore for HttpStore {
         todo!()
     }
     async fn delete(&self, _location: &Path) -> object_store::Result<()> {
-        todo!()
+        let (sender, receiver) = oneshot::channel();
+        let copied_client = self.client.clone();
+        let cloned_location = _location.clone();
+        spawn_local(async move {
+            let res = copied_client.delete(&cloned_location).await;
+            sender.send(res).unwrap();
+        });
+        receiver.await.unwrap()
     }
 
     async fn get_opts(
@@ -325,7 +358,22 @@ impl ObjectStore for HttpStore {
         _bytes: Bytes,
         _options: object_store::PutOptions,
     ) -> object_store::Result<object_store::PutResult> {
-        todo!()
+        if _options.mode != PutMode::Overwrite {
+            // TODO: Add support for If header - https://datatracker.ietf.org/doc/html/rfc2518#section-9.4
+            return Err(Error::NotImplemented);
+        }
+
+        let response = self.client.put(_location, _bytes).await?;
+        let e_tag = match get_etag(response.headers()) {
+            Ok(e_tag) => Some(e_tag),
+            Err(HeaderError::MissingEtag) => None,
+            Err(source) => return Err(Error::Generic { store: InnerClient::STORE, source: Box::new(source) }.into()),
+        };
+
+        Ok(PutResult {
+            e_tag,
+            version: None,
+        })
     }
     fn list(&self, _prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
         todo!()
