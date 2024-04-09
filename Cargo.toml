@@ -1,7 +1,7 @@
 [package]
 name = "object-store-wasm"
 version = "0.1.0"
-authors = ["nicholas"]
+authors = ["Nicholas Roberts <nicholas.roberts.au@gmail.com>"]
 edition = "2021"
 
 [lib]
@@ -27,13 +27,11 @@ web-sys = "0.3.68"
 chrono = "0.4.34"
 snafu = "0.7.5"
 backon = "0.4.1"
-instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 async-trait = "0.1.74"
 url = "2.5.0"
 
 tokio = { version = "1.34.0", default-features = false }
 object_store = "0.9.0"
-serde-wasm-bindgen = { version = "0.6" }
 bytes = { version = "1" }
 
 wasm-bindgen-futures = { version = "0.4.30" }
