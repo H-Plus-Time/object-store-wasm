@@ -1,11 +1,10 @@
-use std::fmt::Formatter;
-use std::ops::Range;
 use std::fmt::Display;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc, TimeZone};
-use futures::TryFutureExt;
 use futures::stream::BoxStream;
+use futures::SinkExt;
+use futures::stream::StreamExt;
 use futures::channel::oneshot;
 use wasm_bindgen_futures::spawn_local;
 use object_store::{path::Path, ObjectMeta};
@@ -158,20 +157,6 @@ impl GetOptionsExt for RequestBuilder {
     }
 }
 
-
-// #[derive(Debug)]
-struct InhouseGetResult {
-    range: Range<usize>,
-    payload: Result<Bytes, Error>,
-    meta: ObjectMeta
-}
-
-impl std::fmt::Debug for InhouseGetResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-       write!(f, "InhouseGetResult(Opaque)")
-    }
-}
-
 #[derive(Debug, Clone)]
 struct InnerClient {
     url: Url,
@@ -234,7 +219,7 @@ impl InnerClient {
         Ok(res)
     }
 
-    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<InhouseGetResult> {
+    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
         let range = options.range.clone();
         let response = self.get_request(location, options).await?;
         let meta = header_meta(location, response.headers(), InnerClient::HEADER_CONFIG).map_err(|e| {
@@ -243,23 +228,28 @@ impl InnerClient {
                 source: Box::new(e),
             }
         })?;
+        let (mut tx, rx) = futures::channel::mpsc::channel(1);
+        spawn_local(async move {
+            let mut stream = response.bytes_stream();
+            while let Some(chunk) = stream.next().await {
+                let res = chunk.map_err(|source| Error::Generic {
+                    store: InnerClient::STORE,
+                    source: Box::new(source),
+                });
+                tx.send(res).await.unwrap();
+            }
+        });
+        let safe_stream = rx.boxed();
 
-        let stream = response
-            .bytes()
-            .map_err(|source| Error::Generic {
-                store: InnerClient::STORE,
-                source: Box::new(source),
-            }).await;
         let resolved_range = match range {
             Some(GetRange::Bounded(inner_range)) => inner_range,
-            Some(GetRange::Offset(lower_limit)) => (lower_limit..meta.size),
-            Some(GetRange::Suffix(upper_limit)) => (0..upper_limit),
+            Some(GetRange::Offset(lower_limit)) => lower_limit..meta.size,
+            Some(GetRange::Suffix(upper_limit)) => 0..upper_limit,
             None => 0..meta.size
         };
-        // hack - diverge from upstream object_store implementation
-        Ok(InhouseGetResult {
+        Ok(GetResult {
             range: resolved_range,
-            payload: stream,
+            payload: GetResultPayload::Stream(safe_stream),
             meta
         })
     }
@@ -323,18 +313,11 @@ impl ObjectStore for HttpStore {
         let copied_client = self.client.clone();
         let copied_location = location.clone();
         spawn_local(async move {
-            let res = copied_client.get_opts(&copied_location, options).await.unwrap();
+            let res = copied_client.get_opts(&copied_location, options).await;
             sender.send(res).unwrap();
         });
         
-        let data = receiver.await.unwrap();
-        let wrapped_stream = futures::stream::once(futures::future::ready(data.payload));
-        
-        Ok(GetResult {
-            range: data.range,
-            payload: GetResultPayload::Stream(Box::pin(wrapped_stream)),
-            meta: data.meta
-        })
+        receiver.await.unwrap()
     }
     async fn put_opts(
         &self,
