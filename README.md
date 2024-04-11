@@ -10,7 +10,7 @@ I expect there's a few parts of this that could be upstreamed, but I seriously d
 
 Roadmap
 - [x] get_opts via http/s
-- [ ] attempt actual streaming responses
+- [x] attempt actual streaming responses
 - [ ] avoid/provide a config option for swapping HEAD requests with zero-range GETs
-- [ ] JS bindings (behind a flag)
+- [x] JS bindings (behind a flag)
 - [ ] AWS read only operations

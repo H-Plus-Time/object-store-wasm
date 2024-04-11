@@ -1,8 +1,15 @@
 [package]
 name = "object-store-wasm"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Nicholas Roberts <nicholas.roberts.au@gmail.com>"]
 edition = "2021"
+description = "WebAssembly object_store implementation"
+readme = "README.md"
+repository = "https://github.com/H-Plus-Time/object-store-wasm"
+license = "MIT OR Apache-2.0"
+keywords = ["webassembly"]
+categories = ["wasm"]
+rust-version = "1.62"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
