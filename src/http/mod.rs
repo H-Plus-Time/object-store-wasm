@@ -276,13 +276,12 @@ impl InnerClient {
                 _ => Error::Generic {
                     store: InnerClient::STORE,
                     source: Box::new(source),
-                }
-                .into(),
+                },
             })?;
         Ok(())
     }
 
-    pub async fn put(&self, path: &Path, payload: Bytes) -> Result<Response> {
+    pub async fn put(&self, _path: &Path, _payload: Bytes) -> Result<Response> {
         todo!()
     }
 }
@@ -367,7 +366,12 @@ impl ObjectStore for HttpStore {
         let e_tag = match get_etag(response.headers()) {
             Ok(e_tag) => Some(e_tag),
             Err(HeaderError::MissingEtag) => None,
-            Err(source) => return Err(Error::Generic { store: InnerClient::STORE, source: Box::new(source) }.into()),
+            Err(source) => {
+                return Err(Error::Generic {
+                    store: InnerClient::STORE,
+                    source: Box::new(source),
+                })
+            }
         };
 
         Ok(PutResult {

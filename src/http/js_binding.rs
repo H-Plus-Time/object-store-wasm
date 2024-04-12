@@ -1,14 +1,11 @@
-
 use chrono::{DateTime, Utc};
-use object_store::{path::Path, ObjectStore};
-use url::Url;
-use object_store::{
-    GetOptions, Result, GetRange
-};
 use futures::stream::StreamExt;
+use object_store::{path::Path, ObjectStore};
+use object_store::{GetOptions, GetRange, Result};
+use url::Url;
 
-use wasm_bindgen::prelude::*;
 use crate::http::HttpStore;
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Default)]
 #[wasm_bindgen]
@@ -19,12 +16,12 @@ pub struct WasmGetOptions {
     if_unmodified_since: Option<DateTime<Utc>>,
     range: Option<GetRange>,
     version: Option<String>,
-    head: bool
+    head: bool,
 }
 
 impl From<WasmGetOptions> for GetOptions {
     fn from(value: WasmGetOptions) -> Self {
-        let other = GetOptions {
+        GetOptions {
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since: value.if_modified_since,
@@ -32,8 +29,7 @@ impl From<WasmGetOptions> for GetOptions {
             range: value.range,
             version: value.version,
             head: value.head,
-        };
-        other
+        }
     }
 }
 
@@ -51,7 +47,11 @@ impl WasmHttpStore {
         Ok(WasmHttpStore(storage_container))
     }
     #[wasm_bindgen]
-    pub async fn get(&self, location: &str, options: Option<WasmGetOptions>) -> Result<wasm_streams::readable::sys::ReadableStream, wasm_bindgen::JsError> {
+    pub async fn get(
+        &self,
+        location: &str,
+        options: Option<WasmGetOptions>,
+    ) -> Result<wasm_streams::readable::sys::ReadableStream, wasm_bindgen::JsError> {
         let options = options.unwrap_or_default().into();
         // query parameters will be interpreted as literal parts of the path,
         // and url encoded
@@ -59,7 +59,8 @@ impl WasmHttpStore {
         let res = self.0.get_opts(&converted_location, options).await?;
         let intermediate_stream = res.into_stream().map(|chunk| {
             let inner_chunk = chunk.unwrap();
-            let return_vec = js_sys::Uint8Array::new_with_length(inner_chunk.len().try_into().unwrap());
+            let return_vec =
+                js_sys::Uint8Array::new_with_length(inner_chunk.len().try_into().unwrap());
             return_vec.copy_from(&inner_chunk);
             Ok(return_vec.into())
         });
