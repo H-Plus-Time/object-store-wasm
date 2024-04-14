@@ -148,7 +148,7 @@ where
     let store: Box<dyn ObjectStore> = match scheme {
         #[cfg(feature = "aws")]
         ObjectStoreScheme::AmazonS3 => {
-            builder_opts!(crate::aws::AmazonS3Builder, url, _options)
+            builder_opts!(crate::aws::builder::AmazonS3Builder, url, _options)
         }
         #[cfg(feature = "http")]
         ObjectStoreScheme::Http => {

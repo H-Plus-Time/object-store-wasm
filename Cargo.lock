@@ -749,19 +749,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "getrandom"
-version = "0.2.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94b22e06ecb0110981051723910cbf0b5f5e09a2062dd7663334ee79a9d1286c"
-dependencies = [
- "cfg-if",
- "js-sys",
- "libc",
- "wasi",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "gimli"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -927,9 +914,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
  "cfg-if",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -1070,24 +1054,35 @@ name = "object-store-wasm"
 version = "0.0.3"
 dependencies = [
  "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-s3",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-types",
+ "aws-types",
  "backon",
  "bytes",
  "chrono",
  "console_error_panic_hook",
  "futures",
+ "http",
+ "itertools",
  "js-sys",
  "object_store",
- "object_store_s3_wasm",
  "reqwest",
  "serde",
  "serde-wasm-bindgen",
- "snafu 0.7.5",
+ "snafu",
+ "thiserror",
  "tokio",
+ "tower",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "wasm-streams",
+ "wasm-timer",
  "web-sys",
 ]
 
@@ -1105,46 +1100,11 @@ dependencies = [
  "itertools",
  "parking_lot 0.12.1",
  "percent-encoding",
- "snafu 0.7.5",
+ "snafu",
  "tokio",
  "tracing",
  "url",
  "walkdir",
-]
-
-[[package]]
-name = "object_store_s3_wasm"
-version = "0.1.0"
-source = "git+https://github.com/H-Plus-Time/object_store_s3_wasm.git?rev=c618b18cb7d5f0fc29ed57a099a8c1adf8a1fc1e#c618b18cb7d5f0fc29ed57a099a8c1adf8a1fc1e"
-dependencies = [
- "async-trait",
- "aws-config",
- "aws-credential-types",
- "aws-sdk-s3",
- "aws-smithy-async",
- "aws-smithy-http",
- "aws-smithy-types",
- "aws-types",
- "bytes",
- "chrono",
- "console_error_panic_hook",
- "futures",
- "getrandom",
- "http",
- "itertools",
- "js-sys",
- "object_store",
- "parking_lot 0.11.2",
- "serde",
- "snafu 0.8.2",
- "thiserror",
- "tokio",
- "tower",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-timer",
- "web-sys",
 ]
 
 [[package]]
@@ -1500,16 +1460,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4de37ad025c587a29e8f3f5605c00f70b98715ef90b9061a815b9e59e9042d6"
 dependencies = [
  "doc-comment",
- "snafu-derive 0.7.5",
-]
-
-[[package]]
-name = "snafu"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75976f4748ab44f6e5332102be424e7c2dc18daeaf7e725f2040c3ebb133512e"
-dependencies = [
- "snafu-derive 0.8.2",
+ "snafu-derive",
 ]
 
 [[package]]
@@ -1522,18 +1473,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "snafu-derive"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4b19911debfb8c2fb1107bc6cb2d61868aaf53a988449213959bb1b5b1ed95f"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.58",
 ]
 
 [[package]]

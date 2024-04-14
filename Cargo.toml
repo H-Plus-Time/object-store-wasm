@@ -16,9 +16,22 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 http = []
-aws = ["dep:object_store_s3_wasm"]
+aws = [
+    "dep:aws-config",
+    "dep:aws-credential-types",
+    "dep:aws-sdk-s3",
+    "dep:aws-smithy-async",
+    "dep:aws-smithy-http",
+    "dep:aws-smithy-types",
+    "dep:aws-types",
+    "dep:thiserror",
+    "dep:itertools",
+    "dep:tower",
+    "dep:http",
+    "dep:wasm-timer"
+]
 js_binding = []
-default = ["console_error_panic_hook", "http", "js_binding"]
+default = ["console_error_panic_hook", "http", "js_binding", "aws"]
 
 [dependencies]
 wasm-bindgen = "0.2.90"
@@ -37,9 +50,18 @@ snafu = "0.7.5"
 backon = "0.4.1"
 async-trait = "0.1.74"
 url = "2.5.0"
-object_store_s3_wasm = { git = "https://github.com/H-Plus-Time/object_store_s3_wasm.git", rev = "c618b18cb7d5f0fc29ed57a099a8c1adf8a1fc1e", optional = true }
-# object_store_s3_wasm = { path = "../object_store_s3_wasm", optional = true }
-
+aws-config = { version = "0.56.1", default-features = false, optional = true }
+aws-credential-types = { version = "0.56.1", features = ["hardcoded-credentials"], optional = true }
+aws-sdk-s3 = { version = "0.31.1", default-features = false, optional = true }
+aws-smithy-async = { version = "0.56.1", optional = true }
+aws-smithy-http = { version = "0.56.1", features = ["event-stream"], optional = true }
+aws-smithy-types = { version = "0.56.1", optional = true }
+aws-types = { version = "0.56.1", default-features = false, optional = true }
+thiserror = { version = "1", optional = true }
+itertools = { version = "0.12.1", optional = true }
+tower = { version = "0.4", optional = true }
+http = { version = "0.2", optional = true }
+wasm-timer = { version = "0.2", optional = true }
 tokio = { version = "1.34.0", default-features = false }
 object_store = "0.9.0"
 bytes = { version = "1" }

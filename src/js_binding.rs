@@ -58,7 +58,7 @@ impl From<object_store::ObjectMeta> for WasmObjectMeta {
             last_modified: value.last_modified.into(),
             size: value.size,
             e_tag: value.e_tag,
-            version: value.version
+            version: value.version,
         }
     }
 }
@@ -117,11 +117,11 @@ impl WasmObjectStore {
     #[wasm_bindgen]
     pub async fn list(
         &self,
-        prefix: Option<String>
+        prefix: Option<String>,
     ) -> Result<wasm_streams::readable::sys::ReadableStream, wasm_bindgen::JsError> {
         let prefix = match prefix {
             Some(_prefix) => Some(Path::parse(_prefix)?),
-            None => None
+            None => None,
         };
         let initial_stream = self.inner.list_with_delimiter(prefix.as_ref()).await?;
         let intermediate_stream = futures::stream::iter(initial_stream.objects).map(|element| {
