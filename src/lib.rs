@@ -1,6 +1,6 @@
 #[cfg(feature = "http")]
 pub mod http;
-#[cfg(feature = "js_binding")]
+#[cfg(all(target_arch="wasm32", feature = "js_binding"))]
 pub mod js_binding;
 pub mod parse;
 pub mod utils;
