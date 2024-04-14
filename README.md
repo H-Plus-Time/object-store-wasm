@@ -13,4 +13,5 @@ Roadmap
 - [x] attempt actual streaming responses
 - [ ] avoid/provide a config option for swapping HEAD requests with zero-range GETs
 - [x] JS bindings (behind a flag)
-- [ ] AWS read only operations
+- [x] AWS read only operations
+- [x] wasm-exposed get, list

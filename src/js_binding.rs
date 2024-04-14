@@ -34,6 +34,35 @@ impl From<WasmGetOptions> for GetOptions {
     }
 }
 
+#[derive(Debug)]
+#[wasm_bindgen(getter_with_clone, inspectable)]
+pub struct WasmObjectMeta {
+    /// The full path to the object
+    pub location: String,
+    /// The last modified time
+    pub last_modified: js_sys::Date,
+    /// The size in bytes of the object
+    pub size: usize,
+    /// The unique identifier for the object
+    ///
+    /// <https://datatracker.ietf.org/doc/html/rfc9110#name-etag>
+    pub e_tag: Option<String>,
+    /// A version indicator for this object
+    pub version: Option<String>,
+}
+
+impl From<object_store::ObjectMeta> for WasmObjectMeta {
+    fn from(value: object_store::ObjectMeta) -> Self {
+        Self {
+            location: value.location.to_string(),
+            last_modified: value.last_modified.into(),
+            size: value.size,
+            e_tag: value.e_tag,
+            version: value.version
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub struct WasmObjectStore {
     inner: Arc<dyn ObjectStore>,
@@ -82,6 +111,22 @@ impl WasmObjectStore {
                 js_sys::Uint8Array::new_with_length(inner_chunk.len().try_into().unwrap());
             return_vec.copy_from(&inner_chunk);
             Ok(return_vec.into())
+        });
+        Ok(wasm_streams::ReadableStream::from_stream(intermediate_stream).into_raw())
+    }
+    #[wasm_bindgen]
+    pub async fn list(
+        &self,
+        prefix: Option<String>
+    ) -> Result<wasm_streams::readable::sys::ReadableStream, wasm_bindgen::JsError> {
+        let prefix = match prefix {
+            Some(_prefix) => Some(Path::parse(_prefix)?),
+            None => None
+        };
+        let initial_stream = self.inner.list_with_delimiter(prefix.as_ref()).await?;
+        let intermediate_stream = futures::stream::iter(initial_stream.objects).map(|element| {
+            let inner: WasmObjectMeta = element.into();
+            Ok(inner.into())
         });
         Ok(wasm_streams::ReadableStream::from_stream(intermediate_stream).into_raw())
     }
