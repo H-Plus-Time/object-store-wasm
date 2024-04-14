@@ -31,7 +31,7 @@ aws = [
     "dep:wasm-timer"
 ]
 js_binding = []
-default = ["console_error_panic_hook", "http", "js_binding", "aws"]
+default = ["console_error_panic_hook", "http", "js_binding"]
 
 [dependencies]
 wasm-bindgen = "0.2.90"
