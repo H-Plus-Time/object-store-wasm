@@ -225,6 +225,7 @@ impl InnerClient {
 
     async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
         let range = options.range.clone();
+        let no_body = options.head;
         let response = self.get_request(location, options).await?;
         let meta =
             header_meta(location, response.headers(), InnerClient::HEADER_CONFIG).map_err(|e| {
@@ -233,19 +234,28 @@ impl InnerClient {
                     source: Box::new(e),
                 }
             })?;
+        if no_body {
+            return Ok(GetResult {
+                range: Default::default(),
+                payload: GetResultPayload::Stream(
+                    futures::stream::empty().boxed()
+                ),
+                meta,
+            })
+        }
         let (tx, rx) = futures::channel::mpsc::channel(1);
         spawn_local(async move {
             let stream = response.bytes_stream();
             stream
-                .map(|chunk| {
-                    Ok(chunk.map_err(|source| Error::Generic {
-                        store: InnerClient::STORE,
-                        source: Box::new(source),
-                    }))
-                })
-                .forward(tx)
-                .await
-                .unwrap();
+            .map(|chunk| {
+                Ok(chunk.map_err(|source| Error::Generic {
+                    store: InnerClient::STORE,
+                    source: Box::new(source),
+                }))
+            })
+            .forward(tx)
+            .await
+            .unwrap();
         });
         let safe_stream = rx.boxed();
 
