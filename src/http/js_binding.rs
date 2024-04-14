@@ -1,37 +1,12 @@
-use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use object_store::{path::Path, ObjectStore};
-use object_store::{GetOptions, GetRange, Result};
+use object_store::Result;
 use url::Url;
 
 use crate::http::HttpStore;
 use wasm_bindgen::prelude::*;
+use crate::js_binding::WasmGetOptions;
 
-#[derive(Debug, Default)]
-#[wasm_bindgen]
-pub struct WasmGetOptions {
-    if_match: Option<String>,
-    if_none_match: Option<String>,
-    if_modified_since: Option<DateTime<Utc>>,
-    if_unmodified_since: Option<DateTime<Utc>>,
-    range: Option<GetRange>,
-    version: Option<String>,
-    head: bool,
-}
-
-impl From<WasmGetOptions> for GetOptions {
-    fn from(value: WasmGetOptions) -> Self {
-        GetOptions {
-            if_match: value.if_match,
-            if_none_match: value.if_none_match,
-            if_modified_since: value.if_modified_since,
-            if_unmodified_since: value.if_unmodified_since,
-            range: value.range,
-            version: value.version,
-            head: value.head,
-        }
-    }
-}
 
 #[wasm_bindgen]
 pub struct WasmHttpStore(HttpStore);
