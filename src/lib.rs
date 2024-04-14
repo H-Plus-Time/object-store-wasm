@@ -1,11 +1,9 @@
 #[cfg(feature = "http")]
 pub mod http;
-pub mod utils;
-pub mod parse;
 #[cfg(feature = "js_binding")]
 pub mod js_binding;
-#[cfg(feature = "js_binding")]
-pub use http::js_binding::WasmHttpStore;
+pub mod parse;
+pub mod utils;
 #[cfg(feature = "http")]
 pub use http::HttpStore;
 #[cfg(feature = "aws")]
