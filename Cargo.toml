@@ -16,6 +16,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 http = []
+aws = ["dep:object_store_s3_wasm"]
 js_binding = []
 default = ["console_error_panic_hook", "http", "js_binding"]
 
@@ -36,6 +37,8 @@ snafu = "0.7.5"
 backon = "0.4.1"
 async-trait = "0.1.74"
 url = "2.5.0"
+object_store_s3_wasm = { git = "https://github.com/H-Plus-Time/object_store_s3_wasm.git", rev = "c618b18cb7d5f0fc29ed57a099a8c1adf8a1fc1e", optional = true }
+# object_store_s3_wasm = { path = "../object_store_s3_wasm", optional = true }
 
 tokio = { version = "1.34.0", default-features = false }
 object_store = "0.9.0"
@@ -43,6 +46,8 @@ bytes = { version = "1" }
 
 wasm-bindgen-futures = { version = "0.4.30" }
 futures = { version = "0.3" }
+serde-wasm-bindgen = "0.6.5"
+serde = { version = "1.0.197", features = ["derive"] }
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
 
