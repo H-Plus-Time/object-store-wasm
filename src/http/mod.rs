@@ -22,9 +22,6 @@ use reqwest::{
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 
-#[cfg(feature = "js_binding")]
-pub mod js_binding;
-
 #[derive(Debug, Copy, Clone)]
 /// Configuration for header extraction
 struct HeaderConfig {
@@ -237,25 +234,23 @@ impl InnerClient {
         if no_body {
             return Ok(GetResult {
                 range: Default::default(),
-                payload: GetResultPayload::Stream(
-                    futures::stream::empty().boxed()
-                ),
+                payload: GetResultPayload::Stream(futures::stream::empty().boxed()),
                 meta,
-            })
+            });
         }
         let (tx, rx) = futures::channel::mpsc::channel(1);
         spawn_local(async move {
             let stream = response.bytes_stream();
             stream
-            .map(|chunk| {
-                Ok(chunk.map_err(|source| Error::Generic {
-                    store: InnerClient::STORE,
-                    source: Box::new(source),
-                }))
-            })
-            .forward(tx)
-            .await
-            .unwrap();
+                .map(|chunk| {
+                    Ok(chunk.map_err(|source| Error::Generic {
+                        store: InnerClient::STORE,
+                        source: Box::new(source),
+                    }))
+                })
+                .forward(tx)
+                .await
+                .unwrap();
         });
         let safe_stream = rx.boxed();
 
