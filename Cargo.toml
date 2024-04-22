@@ -41,7 +41,7 @@ wasm-bindgen = "0.2.90"
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
-reqwest = { version = "^0.11.22", optional = false, default-features = false, features = [ "stream" ] }
+reqwest = { version = "^0.12.4", optional = false, default-features = false, features = [ "stream" ] }
 wasm-streams = "0.4.0"
 js-sys = "0.3.68"
 web-sys = "0.3.68"
