@@ -11,6 +11,7 @@ use futures::{
     TryFutureExt, TryStreamExt,
 };
 use multipart::MultiPartUpload;
+use object_store::Attributes;
 use object_store::{
     multipart::WriteMultiPart, GetRange, GetResultPayload, ListResult, ObjectMeta, ObjectStore,
     PutOptions, PutResult,
@@ -184,6 +185,7 @@ impl ObjectStore for AmazonS3 {
                 start: range[0],
                 end: range[1],
             },
+            attributes: Attributes::new(),
         })
     }
     async fn head(

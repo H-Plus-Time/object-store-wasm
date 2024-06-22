@@ -5,9 +5,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use futures::channel::oneshot;
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
-use object_store::PutMode;
 use object_store::PutResult;
 use object_store::{path::Path, ObjectMeta};
+use object_store::{Attributes, PutMode};
 use object_store::{Error, GetOptions, GetRange, GetResult, GetResultPayload, ObjectStore, Result};
 use url::Url;
 use wasm_bindgen_futures::spawn_local;
@@ -236,6 +236,7 @@ impl InnerClient {
                 range: Default::default(),
                 payload: GetResultPayload::Stream(futures::stream::empty().boxed()),
                 meta,
+                attributes: Attributes::new(),
             });
         }
         let (tx, rx) = futures::channel::mpsc::channel(1);
@@ -264,6 +265,7 @@ impl InnerClient {
             range: resolved_range,
             payload: GetResultPayload::Stream(safe_stream),
             meta,
+            attributes: Attributes::new(),
         })
     }
     pub async fn delete(&self, path: &Path) -> Result<()> {
