@@ -3,20 +3,16 @@ use std::{fmt::Display, num::ParseIntError, ops::Range, sync::Arc};
 use async_trait::async_trait;
 use aws_sdk_s3::Client;
 use builder::AmazonS3Builder;
-use bytes::Bytes;
 use chrono::{DateTime, TimeZone, Utc};
 use error::Error;
 use futures::{
     stream::{self, BoxStream},
     TryFutureExt, TryStreamExt,
 };
-use multipart::MultiPartUpload;
 use object_store::Attributes;
 use object_store::{
-    multipart::WriteMultiPart, GetRange, GetResultPayload, ListResult, ObjectMeta, ObjectStore,
-    PutOptions, PutResult,
+    GetRange, GetResultPayload, ListResult, ObjectMeta, ObjectStore, PutOptions, PutResult,
 };
-use tokio::io::AsyncWrite;
 
 pub mod builder;
 mod error;
@@ -37,21 +33,6 @@ impl AmazonS3 {
 
 #[async_trait]
 impl ObjectStore for AmazonS3 {
-    async fn abort_multipart(
-        &self,
-        location: &object_store::path::Path,
-        multipart_id: &object_store::MultipartId,
-    ) -> object_store::Result<()> {
-        self.client
-            .abort_multipart_upload()
-            .bucket(self.bucket.clone())
-            .key(location.to_string())
-            .upload_id(multipart_id)
-            .send()
-            .await
-            .map_err(Error::from)?;
-        Ok(())
-    }
     async fn copy(
         &self,
         from: &object_store::path::Path,
@@ -160,10 +141,9 @@ impl ObjectStore for AmazonS3 {
         let range = response
             .content_range
             // .ok_or(Error::Unknown)?
-            .or(Some(format!("0-{}", size)))
-            .unwrap()
+            .unwrap_or(format!("0-{}", size))
             .trim_start_matches("bytes=")
-            .split("-")
+            .split('-')
             .map(|x| x.parse::<usize>())
             .collect::<Result<Vec<_>, ParseIntError>>()
             .map_err(Error::from)?;
@@ -320,15 +300,16 @@ impl ObjectStore for AmazonS3 {
     async fn put_opts(
         &self,
         location: &object_store::path::Path,
-        bytes: Bytes,
+        payload: object_store::PutPayload,
         opts: PutOptions,
     ) -> object_store::Result<PutResult> {
+        let buf = bytes::Bytes::from(payload);
         let result = self
             .client
             .put_object()
             .bucket(self.bucket.clone())
             .key(location.to_string())
-            .body(bytes.into())
+            .body(buf.into())
             .tagging(opts.tags.encoded())
             .send()
             .await
@@ -340,31 +321,38 @@ impl ObjectStore for AmazonS3 {
     }
     async fn put_multipart(
         &self,
-        location: &object_store::path::Path,
-    ) -> object_store::Result<(
-        object_store::MultipartId,
-        Box<dyn AsyncWrite + Unpin + Send>,
-    )> {
-        let response = self
-            .client
-            .create_multipart_upload()
-            .bucket(self.bucket.clone())
-            .key(location.to_string())
-            .send()
-            .await
-            .map_err(Error::from)?;
+        _location: &object_store::path::Path,
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+        Err(object_store::Error::NotImplemented)
 
-        let multipart_upload = Box::new(WriteMultiPart::new(
-            MultiPartUpload {
-                bucket: self.bucket.clone(),
-                location: location.to_string(),
-                upload_id: response.upload_id.clone().ok_or(Error::Unknown)?,
-                client: self.client.clone(),
-            },
-            16,
-        ));
+        // let response = self
+        //     .client
+        //     .create_multipart_upload()
+        //     .bucket(self.bucket.clone())
+        //     .key(location.to_string())
+        //     .send()
+        //     .await
+        //     .map_err(Error::from)?;
 
-        Ok((response.upload_id.ok_or(Error::Unknown)?, multipart_upload))
+        // let multipart_upload = Box::new(WriteMultiPart::new(
+        //     MultiPartUpload {
+        //         bucket: self.bucket.clone(),
+        //         location: location.to_string(),
+        //         upload_id: response.upload_id.clone().ok_or(Error::Unknown)?,
+        //         client: self.client.clone(),
+        //     },
+        //     16,
+        // ));
+
+        // Ok((response.upload_id.ok_or(Error::Unknown)?, multipart_upload))
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        _location: &object_store::path::Path,
+        _opts: object_store::PutMultipartOpts,
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+        Err(object_store::Error::NotImplemented)
     }
 }
 
