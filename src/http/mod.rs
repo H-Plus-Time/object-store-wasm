@@ -5,9 +5,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use futures::channel::oneshot;
 use futures::stream::BoxStream;
 use futures::stream::StreamExt;
-use object_store::PutMode;
 use object_store::PutResult;
 use object_store::{path::Path, ObjectMeta};
+use object_store::{Attributes, PutMode};
 use object_store::{Error, GetOptions, GetRange, GetResult, GetResultPayload, ObjectStore, Result};
 use url::Url;
 use wasm_bindgen_futures::spawn_local;
@@ -236,6 +236,7 @@ impl InnerClient {
                 range: Default::default(),
                 payload: GetResultPayload::Stream(futures::stream::empty().boxed()),
                 meta,
+                attributes: Attributes::new(),
             });
         }
         let (tx, rx) = futures::channel::mpsc::channel(1);
@@ -264,6 +265,7 @@ impl InnerClient {
             range: resolved_range,
             payload: GetResultPayload::Stream(safe_stream),
             meta,
+            attributes: Attributes::new(),
         })
     }
     pub async fn delete(&self, path: &Path) -> Result<()> {
@@ -306,21 +308,18 @@ impl HttpStore {
 
 #[async_trait]
 impl ObjectStore for HttpStore {
-    async fn abort_multipart(
-        &self,
-        _location: &Path,
-        _multipart_id: &object_store::MultipartId,
-    ) -> object_store::Result<()> {
-        Err(Error::NotImplemented)
-    }
-
     async fn put_multipart(
         &self,
         _location: &Path,
-    ) -> object_store::Result<(
-        object_store::MultipartId,
-        Box<dyn tokio::io::AsyncWrite + Unpin + Send>,
-    )> {
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+        Err(Error::NotImplemented)
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        _location: &Path,
+        _opts: object_store::PutMultipartOpts,
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
         Err(Error::NotImplemented)
     }
 
@@ -359,7 +358,7 @@ impl ObjectStore for HttpStore {
     async fn put_opts(
         &self,
         _location: &Path,
-        _bytes: Bytes,
+        payload: object_store::PutPayload,
         _options: object_store::PutOptions,
     ) -> object_store::Result<object_store::PutResult> {
         if _options.mode != PutMode::Overwrite {
@@ -367,7 +366,7 @@ impl ObjectStore for HttpStore {
             return Err(Error::NotImplemented);
         }
 
-        let response = self.client.put(_location, _bytes).await?;
+        let response = self.client.put(_location, payload.into()).await?;
         let e_tag = match get_etag(response.headers()) {
             Ok(e_tag) => Some(e_tag),
             Err(HeaderError::MissingEtag) => None,
