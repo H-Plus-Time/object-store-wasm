@@ -131,7 +131,7 @@ impl GetOptionsExt for RequestBuilder {
                 GetRange::Offset(offset) => {
                     format!("bytes={}-", offset)
                 }
-                GetRange::Suffix(upper_limit) => format!("bytes=0-{}", upper_limit),
+                GetRange::Suffix(upper_limit) => format!("bytes=-{}", upper_limit),
             };
             self = self.header(RANGE, range);
         }

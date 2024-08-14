@@ -119,7 +119,7 @@ impl ObjectStore for AmazonS3 {
                 GetRange::Offset(offset) => {
                     format!("bytes={}-", offset)
                 }
-                GetRange::Suffix(upper_limit) => format!("bytes=0-{}", upper_limit),
+                GetRange::Suffix(upper_limit) => format!("bytes=-{}", upper_limit),
             };
             request.range(range)
         } else {
