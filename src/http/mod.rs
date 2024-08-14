@@ -179,7 +179,7 @@ impl InnerClient {
 
     fn path_url(&self, location: &Path) -> Url {
         let mut url = self.url.clone();
-        url.path_segments_mut().unwrap().extend(location.parts());
+        url.path_segments_mut().unwrap().pop_if_empty().extend(location.parts());
         url
     }
 
@@ -191,7 +191,7 @@ impl InnerClient {
             false => Method::GET,
         };
         let builder = self.client.request(method, url).with_get_options(options);
-        let res_func = || async { builder.try_clone().unwrap().send().await };
+        let res_func = || async { builder.try_clone().unwrap().send().await.and_then(|res| res.error_for_status()) };
         let res = res_func
             .retry(&ExponentialBuilder::default())
             .await
@@ -200,7 +200,7 @@ impl InnerClient {
                 Some(StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED) => Error::NotFound {
                     source: Box::new(source),
                     path: path.to_string(),
-                },
+            },
                 _ => Error::Generic {
                     store: InnerClient::STORE,
                     source: Box::new(source),
@@ -274,6 +274,7 @@ impl InnerClient {
             .delete(url)
             .send()
             .await
+            .and_then(|res| res.error_for_status())
             .map_err(|source| match source.status() {
                 Some(StatusCode::NOT_FOUND) => Error::NotFound {
                     source: Box::new(source),
