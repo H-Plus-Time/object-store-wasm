@@ -175,7 +175,7 @@ impl AmazonS3Builder {
         );
         let mut builder = Config::builder()
             .force_path_style(true)
-            .region(self.region.map(|x| Region::new(x)))
+            .region(self.region.map(Region::new))
             .credentials_provider(SharedCredentialsProvider::new(credentials))
             .credentials_cache(CredentialsCache::no_caching())
             .sleep_impl(SharedAsyncSleep::new(BrowserSleep))
