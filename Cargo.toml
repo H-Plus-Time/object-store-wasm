@@ -1,6 +1,6 @@
 [package]
 name = "object-store-wasm"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["Nicholas Roberts <nicholas.roberts.au@gmail.com>"]
 edition = "2021"
 description = "WebAssembly object_store implementation"
