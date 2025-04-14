@@ -135,7 +135,7 @@ impl ObjectStore for AmazonS3 {
                     .map_err(Error::from)?,
             )
             .unwrap();
-        let size = response.content_length() as usize;
+        let size = response.content_length() as u64;
         // TODO: restore the original error handling in the case that
         // the content_range *is* present
         let range = response
@@ -144,7 +144,7 @@ impl ObjectStore for AmazonS3 {
             .unwrap_or(format!("0-{}", size))
             .trim_start_matches("bytes=")
             .split('-')
-            .map(|x| x.parse::<usize>())
+            .map(|x| x.parse::<u64>())
             .collect::<Result<Vec<_>, ParseIntError>>()
             .map_err(Error::from)?;
         Ok(object_store::GetResult {
@@ -191,7 +191,7 @@ impl ObjectStore for AmazonS3 {
         let meta = ObjectMeta {
             location: location.clone(),
             last_modified,
-            size: output.content_length() as usize,
+            size: output.content_length() as u64,
             e_tag: output.e_tag().map(|x| x.to_string()),
             version: None,
         };
@@ -200,7 +200,7 @@ impl ObjectStore for AmazonS3 {
     fn list(
         &self,
         prefix: Option<&object_store::path::Path>,
-    ) -> BoxStream<'_, object_store::Result<object_store::ObjectMeta>> {
+    ) -> BoxStream<'static, object_store::Result<object_store::ObjectMeta>> {
         let request = self.client.list_objects_v2().bucket(self.bucket.clone());
         let request = match prefix {
             Some(prefix) => request.prefix(prefix.to_string()),
@@ -231,7 +231,7 @@ impl ObjectStore for AmazonS3 {
                                         })?
                                         .into(),
                                     last_modified,
-                                    size: object.size as usize,
+                                    size: object.size as u64,
                                     e_tag: object.e_tag,
                                     version: None,
                                 })
@@ -276,7 +276,7 @@ impl ObjectStore for AmazonS3 {
                             })?
                             .into(),
                         last_modified,
-                        size: object.size as usize,
+                        size: object.size as u64,
                         e_tag: object.e_tag,
                         version: None,
                     })
