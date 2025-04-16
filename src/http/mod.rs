@@ -394,7 +394,7 @@ impl ObjectStore for HttpStore {
             version: None,
         })
     }
-    fn list(&self, _prefix: Option<&Path>) -> BoxStream<'_, object_store::Result<ObjectMeta>> {
+    fn list(&self, _prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
         todo!()
     }
     async fn list_with_delimiter(

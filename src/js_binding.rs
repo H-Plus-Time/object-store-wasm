@@ -30,6 +30,7 @@ impl From<WasmGetOptions> for GetOptions {
             range: value.range,
             version: value.version,
             head: value.head,
+            extensions: Default::default(),
         }
     }
 }
@@ -42,7 +43,7 @@ pub struct WasmObjectMeta {
     /// The last modified time
     pub last_modified: js_sys::Date,
     /// The size in bytes of the object
-    pub size: usize,
+    pub size: u64,
     /// The unique identifier for the object
     ///
     /// <https://datatracker.ietf.org/doc/html/rfc9110#name-etag>
