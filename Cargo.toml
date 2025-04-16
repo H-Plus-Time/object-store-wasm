@@ -50,7 +50,7 @@ web-sys = "0.3.68"
 chrono = { version = "0.4.34", features = ["wasmbind"] }
 snafu = "0.7.5"
 backon = "0.4.1"
-async-trait = "0.1.74"
+async-trait = "0.1.80"
 url = "2.5.0"
 aws-config = { version = "0.56.1", default-features = false, optional = true }
 aws-credential-types = { version = "0.56.1", features = [
