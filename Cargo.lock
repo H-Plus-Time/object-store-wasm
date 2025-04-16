@@ -1071,7 +1071,7 @@ dependencies = [
 
 [[package]]
 name = "object-store-wasm"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "async-trait",
  "aws-config",
