@@ -173,22 +173,24 @@ jobs:
               workflow_id: 'ci.yml',
             });
             const matchWorkflow = baseWorkflows.data?.workflow_runs?.[0];
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              ...baseContext.repo,
-              run_id: matchWorkflow?.id,
-            });
-            const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == "pr"
-            })[0];
-            if(matchArtifact) {
-              const download = await github.rest.actions.downloadArtifact({
+            if(matchWorkflow) {
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                 ...baseContext.repo,
-                artifact_id: matchArtifact.id,
-                archive_format: 'zip',
+                run_id: matchWorkflow.id,
               });
-
-              fs.writeFileSync('${{github.workspace}}/base.zip', Buffer.from(download.data));
-              execSync(`unzip -p base.zip asset_manifest.json >base_asset_manifest.json || true`);
+              const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+                return artifact.name == "pr"
+              })[0];
+              if(matchArtifact) {
+                const download = await github.rest.actions.downloadArtifact({
+                  ...baseContext.repo,
+                  artifact_id: matchArtifact.id,
+                  archive_format: 'zip',
+                });
+  
+                fs.writeFileSync('${{github.workspace}}/base.zip', Buffer.from(download.data));
+                execSync(`unzip -p base.zip asset_manifest.json >base_asset_manifest.json || true`);
+              }
             }
             // now, read in the asset manifests, for the head and base
             let baseAssets = {};
