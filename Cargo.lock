@@ -653,7 +653,6 @@ dependencies = [
  "getrandom 0.3.2",
  "js-sys",
  "object_store",
- "reqwest",
  "ring",
  "serde-wasm-bindgen",
  "url",
@@ -696,7 +695,6 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "walkdir",
  "wasm-bindgen-futures",
  "web-time",
 ]
