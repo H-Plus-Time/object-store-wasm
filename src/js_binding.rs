@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::parse::parse_url_opts as _parse_url_opts;
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use js_sys::Object;
+use object_store::parse_url_opts as _parse_url_opts;
 use object_store::path::Path;
 use object_store::{GetOptions, GetRange, ObjectStore};
 use url::Url;
 use wasm_bindgen::prelude::*;
+
 #[derive(Debug, Default)]
 #[wasm_bindgen]
 pub struct WasmGetOptions {
@@ -72,6 +73,12 @@ pub struct WasmObjectStore {
 
 #[wasm_bindgen]
 impl WasmObjectStore {
+    #[wasm_bindgen(getter)]
+    pub fn base_path(&self) -> Option<String> {
+        self.base_path
+            .as_ref()
+            .map(|inner| inner.as_ref().to_string())
+    }
     #[wasm_bindgen(constructor)]
     pub fn new(
         url: String,
