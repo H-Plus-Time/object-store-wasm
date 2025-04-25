@@ -1,0 +1,14 @@
+{
+    "scripts": {
+        "build": "NAME='@hplustime/object-store-wasm' bash ./scripts/build.sh",
+        "build:test": "ENV='dev' bash ./scripts/build.sh",
+        "test": "echo TODO"
+    },
+    "engines": {
+        "node": "^20.4.0"
+    },
+    "volta": {
+        "node": "20.4.0",
+        "yarn": "3.3.1"
+    }
+}

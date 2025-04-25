@@ -170,7 +170,7 @@ jobs:
               ...baseContext.repo,
               branch: '${{ github.event.pull_request.base.ref }}',
               status: 'success',
-              workflow_id: 'test.yml',
+              workflow_id: 'ci.yml',
             });
             const matchWorkflow = baseWorkflows.data?.workflow_runs?.[0];
             const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
