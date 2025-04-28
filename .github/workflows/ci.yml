@@ -96,7 +96,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: "clippy --all"
-        run: cargo clippy --all --features=full --tests -- -D warnings
+        run: cargo clippy --all --features=full --target=wasm32-unknown-unknown --tests -- -D warnings
 
   node-build-report:
     runs-on: ubuntu-latest
